@@ -31,7 +31,9 @@ import pandas as pd
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
-from sacma.metrics import build_long_table, group_table, overall_table  # noqa: E402
+from sacma.baselines import BASELINES, fetch_baselines  # noqa: E402
+from sacma.metrics import (build_baseline_table, build_long_table,  # noqa: E402
+                           group_table, overall_table)
 from sacma.plots import plot_convergence  # noqa: E402
 from sacma.stats import pairwise_win_matrix, wilcoxon_holm  # noqa: E402
 
@@ -69,6 +71,11 @@ def main() -> None:
     ap.add_argument("--out", default="results/processed")
     ap.add_argument("--budget-mult", type=int, default=250)
     ap.add_argument("--checkpoints", type=int, nargs="+", default=[50, 250])
+    ap.add_argument("--baselines", nargs="*", default=None,
+                    help=f"Include archived baselines in tables/plots. No args = all "
+                         f"({', '.join(BASELINES)}); or list a subset.")
+    ap.add_argument("--cocopp", action="store_true",
+                    help="Also run cocopp.main for the standard ECDF HTML report.")
     args = ap.parse_args()
 
     exdata = _REPO / args.exdata
@@ -82,19 +89,38 @@ def main() -> None:
         return
     print(f"Variants ({len(variants)}): {variants}")
 
-    # ---- Master table + Delta-mu-f aggregations -------------------------
-    long_df = build_long_table(exdata, variants, fe_per_d=tuple(args.checkpoints))
-    long_df.to_csv(out / "long_table.csv", index=False)
+    checkpoints = tuple(args.checkpoints)
 
-    overall = overall_table(long_df)
+    # ---- Fetch baselines (optional) ------------------------------------
+    baseline_paths: dict = {}
+    if args.baselines is not None:
+        names = args.baselines or list(BASELINES)
+        print(f"Fetching baselines: {names}")
+        baseline_paths = fetch_baselines(names)
+
+    # ---- Master table + Delta-mu-f aggregations -------------------------
+    long_var = build_long_table(exdata, variants, fe_per_d=checkpoints)   # variants only
+    long_all = long_var
+    if baseline_paths:
+        long_base = build_baseline_table(baseline_paths, fe_per_d=checkpoints)
+        # Fair comparison: keep only the (function, dimension) cells our variants ran.
+        present = set(map(tuple, long_var[["function", "dimension"]].drop_duplicates().to_numpy()))
+        keep = [(f, d) in present for f, d in zip(long_base.function, long_base.dimension)]
+        long_base = long_base[keep]
+        long_all = pd.concat([long_var, long_base], ignore_index=True)
+    long_all.to_csv(out / "long_table.csv", index=False)
+
+    # Overall + group tables include baselines for context.
+    overall = overall_table(long_all)
     overall.to_csv(out / "overall_table.csv")
-    print("\n=== Overall mean Delta-mu-f ===")
+    print("\n=== Overall mean Delta-mu-f (variants + baselines) ===")
     print(overall.round(4).to_string())
 
-    for feD in args.checkpoints:
-        group_table(long_df, feD).to_csv(out / f"groups_{feD}FEbyD.csv")
-        pairwise_win_matrix(long_df, feD).to_csv(out / f"winmatrix_{feD}FEbyD.csv")
-        wilcoxon_holm(long_df, feD).to_csv(out / f"wilcoxon_{feD}FEbyD.csv", index=False)
+    for feD in checkpoints:
+        group_table(long_all, feD).to_csv(out / f"groups_{feD}FEbyD.csv")
+        # Paired stats stay among our instance-matched variants only.
+        pairwise_win_matrix(long_var, feD).to_csv(out / f"winmatrix_{feD}FEbyD.csv")
+        wilcoxon_holm(long_var, feD).to_csv(out / f"wilcoxon_{feD}FEbyD.csv", index=False)
 
     # ---- Ablation diagnostics ------------------------------------------
     diag = aggregate_diagnostics(diag_dir, variants)
@@ -102,16 +128,25 @@ def main() -> None:
     print("\n=== Diagnostics (surrogate usage) ===")
     print(diag.round(3).to_string(index=False))
 
-    # ---- Convergence plots ---------------------------------------------
-    pairs = long_df[["function", "dimension"]].drop_duplicates().itertuples(index=False)
+    # ---- Convergence plots (variants + baselines) ----------------------
+    sources = {v: str(exdata / v) for v in variants}
+    sources.update(baseline_paths)
+    pairs = long_var[["function", "dimension"]].drop_duplicates().itertuples(index=False)
     n_plots = 0
     for func, dim in pairs:
-        p = plot_convergence(exdata, variants, int(func), int(dim),
+        p = plot_convergence(sources, int(func), int(dim),
                              out / "plots" / f"convergence_f{int(func):02d}_d{int(dim):02d}.png",
                              budget_feD=args.budget_mult)
         if p:
             n_plots += 1
     print(f"\nWrote tables to {out} and {n_plots} convergence plots to {out/'plots'}")
+
+    # ---- Standard cocopp ECDF report (optional) ------------------------
+    if args.cocopp:
+        import cocopp
+        argstr = [str(exdata / v) for v in variants] + list(baseline_paths.values())
+        print(f"\nRunning cocopp.main on {len(argstr)} datasets (ECDF HTML -> ppdata/) ...")
+        cocopp.main(" ".join(argstr))
 
 
 if __name__ == "__main__":

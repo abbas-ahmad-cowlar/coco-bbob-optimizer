@@ -33,13 +33,24 @@ This follows the standard experimental design described in `docs/`
 Built in phases (see the task list). Stage 1 = noiseless `f1–f24`, end-to-end and verified, first.
 
 - [x] **P0** Foundations — dependencies, repo layout, transformer weight cache
-- [ ] **P1** IPOP-CMA-ES alignment to protocol settings
-- [ ] **P2** COCO runner (noiseless `f1–f24`)
-- [ ] **P3** Metrics (Δµf, 12 groups) & statistics (Wilcoxon + Holm)
-- [ ] **P4** Baseline integration (COCO archives)
+- [x] **P1** IPOP-CMA-ES alignment to protocol settings
+- [x] **P2** COCO runner (noiseless `f1–f24`)
+- [x] **P3** Metrics (Δµf, 12 groups) & statistics (Wilcoxon + Holm)
+- [x] **P4** Baseline integration (COCO archives)
 - [ ] **P5** Smoke-verify the full chain on a small matrix
 - [ ] **P6** Full-run package for GPU / long unattended run
 - [ ] **P8** Project report (Stage 1)
+
+## Running
+
+```bash
+# 1. Run the experiment (full Stage 1, or a smoke subset)
+python scripts/run_experiment.py --config configs/stage1_noiseless.yaml
+
+# 2. Analyze: Delta-mu-f tables, stats, ablation, convergence plots
+#    --baselines folds in CMA-ES-2019 / DTS / LMM / LQ; --cocopp adds the ECDF report
+python scripts/analyze.py --baselines --cocopp
+```
 
 ## Setup
 

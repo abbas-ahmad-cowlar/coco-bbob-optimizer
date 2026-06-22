@@ -82,29 +82,49 @@ def load_variant_datasets(exdata_root, variant: str):
         return cocopp.load(folder)
 
 
+def _dataset_rows(dsl, variant: str, model: str, ec: str, fe_per_d) -> list[dict]:
+    """Build long-table rows for one loaded DataSetList (variant or baseline)."""
+    rows = []
+    for ds in dsl:
+        func, dim = int(ds.funcId), int(ds.dim)
+        insts = list(ds.instancenumbers)
+        fv = np.asarray(ds.funvals, dtype=float)
+        for feD in fe_per_d:
+            bp = best_precision_at_budget(fv, feD * dim)
+            dmf = delta_mu_f(bp)
+            for j, inst in enumerate(insts):
+                if j >= bp.shape[0]:
+                    break
+                rows.append({
+                    "variant": variant, "model": model, "ec": ec,
+                    "function": func, "dimension": dim, "instance": int(inst),
+                    "fe_per_d": feD,
+                    "best_precision": float(bp[j]),
+                    "delta_mu_f": float(dmf[j]),
+                })
+    return rows
+
+
 def build_long_table(exdata_root, variants, fe_per_d=(50, 250)) -> pd.DataFrame:
     """Master long table: one row per (variant, function, dim, instance, FE/D checkpoint)."""
     rows = []
     for variant in variants:
         model, ec = parse_variant(variant)
         dsl = load_variant_datasets(exdata_root, variant)
-        for ds in dsl:
-            func, dim = int(ds.funcId), int(ds.dim)
-            insts = list(ds.instancenumbers)
-            fv = np.asarray(ds.funvals, dtype=float)
-            for feD in fe_per_d:
-                bp = best_precision_at_budget(fv, feD * dim)
-                dmf = delta_mu_f(bp)
-                for j, inst in enumerate(insts):
-                    if j >= bp.shape[0]:
-                        break
-                    rows.append({
-                        "variant": variant, "model": model, "ec": ec,
-                        "function": func, "dimension": dim, "instance": int(inst),
-                        "fe_per_d": feD,
-                        "best_precision": float(bp[j]),
-                        "delta_mu_f": float(dmf[j]),
-                    })
+        rows.extend(_dataset_rows(dsl, variant, model, ec, fe_per_d))
+    return pd.DataFrame(rows)
+
+
+def build_baseline_table(baseline_paths: dict, fe_per_d=(50, 250)) -> pd.DataFrame:
+    """Long table for archived baselines (model=name, ec='baseline')."""
+    import warnings as _w
+    import cocopp
+    rows = []
+    for name, path in baseline_paths.items():
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            dsl = cocopp.load(path)
+        rows.extend(_dataset_rows(dsl, name, name, "baseline", fe_per_d))
     return pd.DataFrame(rows)
 
 
