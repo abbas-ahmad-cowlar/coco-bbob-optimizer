@@ -1,0 +1,20 @@
+# Surrogate-Assisted CMA-ES on COCO/BBOB — Python dependencies
+# Verified working on Python 3.14 (Windows, MSVC build tools present for coco-experiment).
+
+# Core scientific stack
+numpy>=2.0
+scipy>=1.13
+scikit-learn>=1.5
+pandas>=2.0
+matplotlib>=3.8
+seaborn>=0.13
+statsmodels>=0.14          # Holm correction (multipletests)
+pyyaml>=6.0                # experiment configs + transformer arch config
+
+# Optimization engine + COCO benchmarking
+cma>=4.0                   # CMA-ES / IPOP-CMA-ES base optimizer
+coco-experiment>=2.8       # cocoex: BBOB suite + COCO-format logging
+cocopp>=2.8                # COCO post-processing: ECDF, baseline archives
+
+# Neural surrogate models (GP uses sklearn; the rest use torch)
+torch>=2.0                 # CPU build is sufficient; CUDA optional for the full run

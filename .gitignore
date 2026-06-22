@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# macOS / zip cruft
+.DS_Store
+__MACOSX/
+
+# Experiment outputs (large, regenerable)
+results/
+exdata/
+*.tar.gz
+ppdata/
+*_cocopp/
+
+# Model weights cache (regenerable via pretraining; large binary)
+models/models/weights/*.pt
+
+# Large / regenerable doc binaries (markdown summaries are kept)
+docs/extracted-pdfs/
+docs/*.pdf
+docs/*.zip
+
+# Editors
+.vscode/
+.idea/
