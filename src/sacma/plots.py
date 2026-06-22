@@ -47,15 +47,26 @@ def convergence_bands(path, function: int, dim: int, feD_grid: np.ndarray):
     return (np.median(P, axis=1), np.percentile(P, 25, axis=1), np.percentile(P, 75, axis=1))
 
 
-def plot_convergence(sources: dict, function: int, dim: int, out_path,
+def plot_convergence(out_path, function: int, dim: int, *,
+                     exdata_root=None, variant_vids=None, baseline_paths=None,
                      budget_feD: float = 250, feD_grid=None):
     """One convergence plot for a (function, dimension).
 
-    ``sources``: ordered mapping {label: path}, where path is a COCO result folder
-    (our variant) or an archived baseline path. One line+band per source.
+    Variants resolve to their per-unit folder ``<vid>__D<dim>__f<func>`` under
+    ``exdata_root``; baselines are single archive folders ({name: path}).
+    One line+band per source.
     """
     if feD_grid is None:
         feD_grid = _default_grid(budget_feD)
+    sources: dict[str, str] = {}
+    if variant_vids and exdata_root is not None:
+        for vid in variant_vids:
+            folder = Path(exdata_root) / f"{vid}__D{dim}__f{function}"
+            if folder.exists():
+                sources[vid] = str(folder)
+    if baseline_paths:
+        sources.update(baseline_paths)
+
     fig, ax = plt.subplots(figsize=(7, 5))
     plotted = 0
     for label, path in sources.items():

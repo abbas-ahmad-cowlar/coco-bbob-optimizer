@@ -106,12 +106,21 @@ def _dataset_rows(dsl, variant: str, model: str, ec: str, fe_per_d) -> list[dict
 
 
 def build_long_table(exdata_root, variants, fe_per_d=(50, 250)) -> pd.DataFrame:
-    """Master long table: one row per (variant, function, dim, instance, FE/D checkpoint)."""
+    """Master long table: one row per (variant, function, dim, instance, FE/D checkpoint).
+
+    Loads the per-unit COCO folders ``<variant>__D<dim>__f<func>`` (one (func,dim)
+    each) for every variant and concatenates the rows.
+    """
+    import cocopp
+    root = Path(exdata_root)
     rows = []
     for variant in variants:
         model, ec = parse_variant(variant)
-        dsl = load_variant_datasets(exdata_root, variant)
-        rows.extend(_dataset_rows(dsl, variant, model, ec, fe_per_d))
+        for folder in sorted(root.glob(f"{variant}__D*__f*")):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                dsl = cocopp.load(str(folder))
+            rows.extend(_dataset_rows(dsl, variant, model, ec, fe_per_d))
     return pd.DataFrame(rows)
 
 

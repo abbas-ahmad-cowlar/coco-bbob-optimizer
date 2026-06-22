@@ -59,16 +59,18 @@ def main() -> None:
     if args.seed is not None:        raw["seed"] = args.seed
 
     cfg = ExperimentConfig.from_dict(raw)
+    from sacma.runner import expand_indices
+    n_units = len(cfg.models) * len(cfg.ecs) * len(cfg.dimensions) * len(expand_indices(cfg.functions))
     print(f"Models: {cfg.models}")
     print(f"ECs: {cfg.ecs}")
     print(f"Functions: {cfg.functions} | Dims: {cfg.dimensions} | Instances: {cfg.instances}")
     print(f"Budget: {cfg.budget_mult} * D | Seed: {cfg.seed} | Suite: {cfg.suite_name}")
-    print(f"Variants to run: {len(cfg.models) * len(cfg.ecs)}\n")
+    print(f"Resume units (variant x dim x func): {n_units}\n")
 
     summaries = run_experiment(cfg, force=args.force)
     done = sum(1 for s in summaries if s["status"] == "complete")
     skipped = sum(1 for s in summaries if s["status"] == "skipped")
-    print(f"\nFinished: {done} run, {skipped} skipped, {len(summaries)} total variants.")
+    print(f"\nFinished: {done} run, {skipped} skipped, {len(summaries)} total units.")
 
 
 if __name__ == "__main__":

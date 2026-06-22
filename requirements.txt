@@ -1,13 +1,15 @@
 # Surrogate-Assisted CMA-ES on COCO/BBOB — Python dependencies
 # Verified working on Python 3.14 (Windows, MSVC build tools present for coco-experiment).
 
-# Core scientific stack
-numpy>=2.0
-scipy>=1.13
-scikit-learn>=1.5
-pandas>=2.0
-matplotlib>=3.8
-seaborn>=0.13
+# Core scientific stack.
+# Lower bounds chosen so `pip install` does NOT force-upgrade Colab's preinstalled
+# numpy/torch (an ABI break) — these are satisfied by both local and Colab stacks.
+numpy>=1.24
+scipy>=1.10
+scikit-learn>=1.3
+pandas>=1.5
+matplotlib>=3.7
+seaborn>=0.12
 statsmodels>=0.14          # Holm correction (multipletests)
 pyyaml>=6.0                # experiment configs + transformer arch config
 

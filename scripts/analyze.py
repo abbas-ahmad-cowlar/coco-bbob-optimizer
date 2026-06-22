@@ -39,16 +39,25 @@ from sacma.stats import pairwise_win_matrix, wilcoxon_holm  # noqa: E402
 
 
 def discover_variants(diag_dir: Path) -> list[str]:
-    return sorted(p.stem for p in diag_dir.glob("*.done"))
+    from sacma.runner import parse_unit
+    vids = set()
+    for p in diag_dir.glob("*.done"):
+        try:
+            vid, _, _ = parse_unit(p.stem)
+            vids.add(vid)
+        except ValueError:
+            pass
+    return sorted(vids)
 
 
 def aggregate_diagnostics(diag_dir: Path, variants: list[str]) -> pd.DataFrame:
     rows = []
     for v in variants:
-        jl = diag_dir / f"{v}.jsonl"
-        if not jl.exists():
+        recs = []
+        for jl in diag_dir.glob(f"{v}__D*__f*.jsonl"):
+            recs += [json.loads(l) for l in jl.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if not recs:
             continue
-        recs = [json.loads(l) for l in jl.read_text(encoding="utf-8").splitlines() if l.strip()]
         df = pd.DataFrame(recs)
         rows.append({
             "variant": v,
@@ -129,14 +138,12 @@ def main() -> None:
     print(diag.round(3).to_string(index=False))
 
     # ---- Convergence plots (variants + baselines) ----------------------
-    sources = {v: str(exdata / v) for v in variants}
-    sources.update(baseline_paths)
     pairs = long_var[["function", "dimension"]].drop_duplicates().itertuples(index=False)
     n_plots = 0
     for func, dim in pairs:
-        p = plot_convergence(sources, int(func), int(dim),
-                             out / "plots" / f"convergence_f{int(func):02d}_d{int(dim):02d}.png",
-                             budget_feD=args.budget_mult)
+        p = plot_convergence(out / "plots" / f"convergence_f{int(func):02d}_d{int(dim):02d}.png",
+                             int(func), int(dim), exdata_root=exdata, variant_vids=variants,
+                             baseline_paths=baseline_paths, budget_feD=args.budget_mult)
         if p:
             n_plots += 1
     print(f"\nWrote tables to {out} and {n_plots} convergence plots to {out/'plots'}")
@@ -144,7 +151,10 @@ def main() -> None:
     # ---- Standard cocopp ECDF report (optional) ------------------------
     if args.cocopp:
         import cocopp
-        argstr = [str(exdata / v) for v in variants] + list(baseline_paths.values())
+        from sacma.coco_merge import merge_variants
+        merged_root = out / "merged_coco"
+        merged = merge_variants(exdata, variants, merged_root)
+        argstr = list(merged.values()) + list(baseline_paths.values())
         print(f"\nRunning cocopp.main on {len(argstr)} datasets (ECDF HTML -> ppdata/) ...")
         cocopp.main(" ".join(argstr))
 

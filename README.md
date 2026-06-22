@@ -37,8 +37,8 @@ Built in phases (see the task list). Stage 1 = noiseless `f1–f24`, end-to-end 
 - [x] **P2** COCO runner (noiseless `f1–f24`)
 - [x] **P3** Metrics (Δµf, 12 groups) & statistics (Wilcoxon + Holm)
 - [x] **P4** Baseline integration (COCO archives)
-- [ ] **P5** Smoke-verify the full chain on a small matrix
-- [ ] **P6** Full-run package for GPU / long unattended run
+- [x] **P5** Smoke-verify the full chain on a small matrix
+- [x] **P6** Resume-safe Colab runbook ([notebooks/colab_runbook.ipynb](notebooks/colab_runbook.ipynb))
 - [ ] **P8** Project report (Stage 1)
 
 ## Running
@@ -51,6 +51,18 @@ python scripts/run_experiment.py --config configs/stage1_noiseless.yaml
 #    --baselines folds in CMA-ES-2019 / DTS / LMM / LQ; --cocopp adds the ECDF report
 python scripts/analyze.py --baselines --cocopp
 ```
+
+Runs are **resume-safe**: the unit of work is one *(model x evolution-control x dimension x
+function)* (~15 runs), marked done by `results/diagnostics/<unit>.done`. Rerunning skips finished
+units, so an interrupted run continues from where it stopped. Parallelize by launching several
+processes over disjoint `--models` / `--ecs` / `--dims`.
+
+### On Google Colab (Drive-backed, survives VM death)
+
+Open [notebooks/colab_runbook.ipynb](notebooks/colab_runbook.ipynb) in Colab and run it top to
+bottom. It mounts Drive, clones this repo, symlinks the output dir to Drive, smoke-tests, then
+runs the resumable queue — if the VM disconnects, just rerun the run cell to continue. Every cell
+states what to **Expect** and when to **STOP**. (The workload is CPU-bound; a GPU is optional.)
 
 ## Setup
 

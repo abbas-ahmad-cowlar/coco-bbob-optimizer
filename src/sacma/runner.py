@@ -1,20 +1,24 @@
-"""COCO/BBOB experiment runner.
+"""COCO/BBOB experiment runner — resume-safe, unit = (variant, dimension, function).
 
-For each algorithm variant (surrogate model x evolution control) this:
-  1. attaches a cocoex ``Observer`` and runs IPOP-CMA-ES over the filtered suite,
-     producing standard COCO output in ``exdata/<variant>`` (read later by cocopp);
-  2. records per-run evolution-control diagnostics (surrogate savings, RMSE,
-     surrogate/direct generations) to ``results/diagnostics/<variant>.jsonl`` —
-     information COCO does not log but the ablation analysis needs.
+For each *unit* (one surrogate model x evolution control x dimension x function,
+across all instances) this:
+  1. attaches a cocoex ``Observer`` and runs IPOP-CMA-ES on every instance,
+     producing standard COCO output in ``exdata/<variant>__D<dim>__f<func>``;
+  2. records per-run EC diagnostics (surrogate savings, RMSE, surr/direct gens)
+     to ``results/diagnostics/<unit>.jsonl`` — info COCO does not log but the
+     ablation analysis needs.
 
-Resume granularity is the *variant* (the COCO-idiomatic unit: one algorithm == one
-result folder spanning all functions/dimensions/instances). A finished variant is
-marked with ``<variant>.done`` and skipped on re-run. To parallelise, launch
-several processes over disjoint ``--models`` / ``--ecs`` subsets; each variant
-writes to its own folder, so there are no collisions.
+Resume granularity is the unit (~15 short runs). A finished unit is marked with
+``<unit>.done`` and skipped on re-run; a VM dying mid-run therefore loses at most
+one unit (minutes), and rerunning continues from the last completed unit. This is
+what makes the Colab workflow survivable (see notebooks/colab_runbook.ipynb).
 
-Budget accounting follows the protocol: 250 * D true evaluations per problem,
-early-stopping when COCO's final target (1e-8) is hit.
+Units are ordered dimension-ascending so the fast low-D results land first.
+Each (function, dimension) maps to exactly one unit folder, so the analysis layer
+loads them directly with no instance-splitting.
+
+Budget follows the protocol: 250 * D true evaluations per problem. Early-stop at
+COCO's 1e-8 target is OFF by default so Delta-mu-f is measured to 1e-13.
 """
 
 from __future__ import annotations
@@ -36,6 +40,26 @@ from .surrogates import EC_TYPES, SURROGATES, make_surrogate, variant_id
 _REPO = Path(__file__).resolve().parents[2]
 
 
+def expand_indices(spec) -> list[int]:
+    """Expand a function/dimension spec into a list of ints.
+
+    Accepts a list/tuple, or a string like '1-24' or '1,8,15' or '1-5,10,20'.
+    """
+    if isinstance(spec, (list, tuple)):
+        return [int(x) for x in spec]
+    out: list[int] = []
+    for part in str(spec).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-")
+            out.extend(range(int(a), int(b) + 1))
+        else:
+            out.append(int(part))
+    return out
+
+
 def _norm_index_spec(spec) -> str:
     """Normalise a function/instance spec to COCO's string form ('1-24' or '1,3,5')."""
     if isinstance(spec, str):
@@ -51,6 +75,18 @@ def suite_filter(functions, dimensions, instances) -> str:
         f"dimensions: {dims} "
         f"instance_indices: {_norm_index_spec(instances)}"
     )
+
+
+def unit_name(vid: str, dim: int, func: int) -> str:
+    """COCO-safe folder/marker name for one (variant, dim, function) unit."""
+    return f"{vid}__D{dim}__f{func}"
+
+
+def parse_unit(name: str) -> tuple[str, int, int]:
+    """Inverse of unit_name -> (variant_id, dim, func)."""
+    vid, rest = name.split("__D", 1)
+    dim_s, func_s = rest.split("__f", 1)
+    return vid, int(dim_s), int(func_s)
 
 
 def run_seed(base_seed: int, model: str, ec: str, func: int, dim: int, inst: int) -> int:
@@ -106,85 +142,89 @@ def _diag_summary(run: dict, model: str, ec: str, func: int, dim: int,
     }
 
 
-def run_variant(model: str, ec: str, cfg: ExperimentConfig,
-                *, force: bool = False, verbose: bool = True) -> dict:
-    """Run one variant over the whole filtered suite. Returns a small summary."""
+def run_unit(model: str, ec: str, dim: int, func: int, cfg: ExperimentConfig,
+             *, force: bool = False, verbose: bool = True) -> dict:
+    """Run one (variant, dim, function) unit over all instances. Resume-safe."""
     vid = variant_id(model, ec)
+    uid = unit_name(vid, dim, func)
     diag_dir = _REPO / cfg.diag_dir
     diag_dir.mkdir(parents=True, exist_ok=True)
-    done_marker = diag_dir / f"{vid}.done"
-    jsonl_path = diag_dir / f"{vid}.jsonl"
-    # COCO always writes under an "exdata/" base in the current directory and does
-    # not create nested result_folder paths, so we run from the repo root and pass
-    # the bare variant name as result_folder -> exdata/<vid>.
+    done_marker = diag_dir / f"{uid}.done"
+    jsonl_path = diag_dir / f"{uid}.jsonl"
     ex_root = _REPO / cfg.exdata_dir
-    ex_folder = ex_root / vid
 
     if done_marker.exists() and not force:
-        if verbose:
-            print(f"[skip] {vid} already complete")
-        return {"variant": vid, "status": "skipped"}
+        return {"unit": uid, "status": "skipped"}
 
-    # Fresh start: clear any partial COCO folder / diagnostics so COCO does not
-    # append to a stale folder and diagnostics do not duplicate.
-    for stale in ex_root.glob(f"{vid}*"):
+    # Fresh start: clear any partial COCO folder / diagnostics for this unit.
+    for stale in ex_root.glob(f"{uid}*"):
         shutil.rmtree(stale, ignore_errors=True)
     jsonl_path.unlink(missing_ok=True)
 
     prev_cwd = Path.cwd()
     os.chdir(_REPO)
     try:
-        suite = cocoex.Suite(cfg.suite_name, "",
-                             suite_filter(cfg.functions, cfg.dimensions, cfg.instances))
-        observer = cocoex.Observer(cfg.suite_name,
-                                  f"result_folder: {vid} algorithm_name: {vid}")
+        suite = cocoex.Suite(cfg.suite_name, "", suite_filter([func], [dim], cfg.instances))
+        observer = cocoex.Observer(cfg.suite_name, f"result_folder: {uid} algorithm_name: {vid}")
         n_runs = 0
         t0 = time.time()
         jf = jsonl_path.open("w", encoding="utf-8")
         for problem in suite:
-            func, dim, inst = problem.id_function, problem.dimension, problem.id_instance
+            inst = problem.id_instance
             budget = cfg.budget_mult * dim
             seed = run_seed(cfg.seed, model, ec, func, dim, inst)
-
             problem.observe_with(observer)
             surrogate = make_surrogate(model, random_state=seed)
             opt = IPOPSurrogateCMAES(surrogate=surrogate, ec_type=ec, random_state=seed)
             done = (lambda p=problem: p.final_target_hit) if cfg.early_stop else None
-            run = opt.run(
-                problem, problem.lower_bounds, problem.upper_bounds,
-                budget=budget, is_done=done,
-            )
+            run = opt.run(problem, problem.lower_bounds, problem.upper_bounds,
+                          budget=budget, is_done=done)
             rec = _diag_summary(run, model, ec, func, dim, inst, seed, budget,
                                 bool(problem.final_target_hit))
             jf.write(json.dumps(rec) + "\n")
             jf.flush()
             n_runs += 1
-            if verbose and n_runs % 25 == 0:
-                print(f"[{vid}] {n_runs} runs ({time.time()-t0:.0f}s)")
-
         jf.close()
         del observer  # flush COCO files
         done_marker.write_text(
-            json.dumps({"variant": vid, "n_runs": n_runs,
-                        "seconds": round(time.time() - t0, 1)}),
+            json.dumps({"unit": uid, "n_runs": n_runs, "seconds": round(time.time() - t0, 1)}),
             encoding="utf-8",
         )
-        if verbose:
-            print(f"[done] {vid}: {n_runs} runs in {time.time()-t0:.0f}s -> {ex_folder}")
     finally:
         os.chdir(prev_cwd)
-    return {"variant": vid, "status": "complete", "n_runs": n_runs}
+    return {"unit": uid, "status": "complete", "n_runs": n_runs}
+
+
+def iter_units(cfg: ExperimentConfig):
+    """Yield (model, ec, dim, func) units, ordered dimension-ascending."""
+    funcs = expand_indices(cfg.functions)
+    for dim in cfg.dimensions:
+        for model in cfg.models:
+            if model not in SURROGATES:
+                raise KeyError(f"unknown model '{model}'")
+            for ec in cfg.ecs:
+                if ec not in EC_TYPES:
+                    raise KeyError(f"unknown ec '{ec}'")
+                for func in funcs:
+                    yield model, ec, dim, func
 
 
 def run_experiment(cfg: ExperimentConfig, *, force: bool = False,
                    verbose: bool = True) -> list[dict]:
-    """Run all selected variants (model x ec), resume-aware."""
+    """Run all selected units (variant x dim x function), resume-aware."""
+    units = list(iter_units(cfg))
+    total = len(units)
     summaries = []
-    for model in cfg.models:
-        if model not in SURROGATES:
-            raise KeyError(f"unknown model '{model}'")
-        for ec in cfg.ecs:
-            if ec not in EC_TYPES:
-                raise KeyError(f"unknown ec '{ec}'")
-            summaries.append(run_variant(model, ec, cfg, force=force, verbose=verbose))
+    t0 = time.time()
+    done = skipped = 0
+    for i, (model, ec, dim, func) in enumerate(units, 1):
+        s = run_unit(model, ec, dim, func, cfg, force=force, verbose=verbose)
+        summaries.append(s)
+        if s["status"] == "complete":
+            done += 1
+        else:
+            skipped += 1
+        if verbose and (i % 20 == 0 or i == total):
+            print(f"[{i}/{total}] {done} run, {skipped} skipped "
+                  f"({time.time()-t0:.0f}s) last={s['unit']}", flush=True)
     return summaries
