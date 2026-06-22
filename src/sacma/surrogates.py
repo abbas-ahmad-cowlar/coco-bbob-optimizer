@@ -50,3 +50,12 @@ def make_surrogate(name: str, random_state: int | None = None, **kwargs: Any):
 def variant_id(model: str, ec: str) -> str:
     """Algorithm-variant label used in COCO output, e.g. 'pfn_transformer_lqEC'."""
     return f"{model}_{ec}EC"
+
+
+def parse_variant(vid: str) -> tuple[str, str]:
+    """Inverse of variant_id: 'pfn_transformer_lqEC' -> ('pfn_transformer', 'lq')."""
+    for ec in EC_TYPES:
+        suffix = f"{ec}EC"
+        if vid.endswith(suffix):
+            return vid[: -len(suffix)].rstrip("_"), ec
+    raise ValueError(f"cannot parse variant id '{vid}'")

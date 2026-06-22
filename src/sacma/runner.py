@@ -71,6 +71,8 @@ class ExperimentConfig:
     instances: object = "1-15"
     budget_mult: int = 250
     seed: int = 42
+    early_stop: bool = False    # if True, stop at COCO 1e-8 target; OFF so Delta-mu-f
+                                # can be measured down to 1e-13 over the full budget
     exdata_dir: str = "exdata"
     diag_dir: str = "results/diagnostics"
 
@@ -147,9 +149,10 @@ def run_variant(model: str, ec: str, cfg: ExperimentConfig,
             problem.observe_with(observer)
             surrogate = make_surrogate(model, random_state=seed)
             opt = IPOPSurrogateCMAES(surrogate=surrogate, ec_type=ec, random_state=seed)
+            done = (lambda p=problem: p.final_target_hit) if cfg.early_stop else None
             run = opt.run(
                 problem, problem.lower_bounds, problem.upper_bounds,
-                budget=budget, is_done=lambda p=problem: p.final_target_hit,
+                budget=budget, is_done=done,
             )
             rec = _diag_summary(run, model, ec, func, dim, inst, seed, budget,
                                 bool(problem.final_target_hit))
