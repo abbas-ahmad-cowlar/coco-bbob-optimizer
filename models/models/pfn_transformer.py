@@ -370,7 +370,7 @@ def pretrain_pfn(
         save_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(model.state_dict(), save_path)
         if verbose:
-            print(f"[PFN] Weights saved → {save_path}", flush=True)
+            print(f"[PFN] Weights saved -> {save_path}", flush=True)
 
 
 # ---------------------------------------------------------------------------
