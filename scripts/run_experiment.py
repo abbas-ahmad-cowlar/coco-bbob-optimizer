@@ -41,6 +41,7 @@ def main() -> None:
     ap.add_argument("--instances", type=str, default=None, help="Instance spec, e.g. '1-15'.")
     ap.add_argument("--budget-mult", type=int, default=None, help="Budget = mult * D (default 250).")
     ap.add_argument("--seed", type=int, default=None, help="Master seed.")
+    ap.add_argument("--jobs", type=int, default=1, help="Parallel worker processes (set to CPU cores).")
     ap.add_argument("--force", action="store_true", help="Re-run variants even if marked complete.")
     args = ap.parse_args()
 
@@ -65,9 +66,9 @@ def main() -> None:
     print(f"ECs: {cfg.ecs}")
     print(f"Functions: {cfg.functions} | Dims: {cfg.dimensions} | Instances: {cfg.instances}")
     print(f"Budget: {cfg.budget_mult} * D | Seed: {cfg.seed} | Suite: {cfg.suite_name}")
-    print(f"Resume units (variant x dim x func): {n_units}\n")
+    print(f"Resume units (variant x dim x func): {n_units} | jobs: {args.jobs}\n")
 
-    summaries = run_experiment(cfg, force=args.force)
+    summaries = run_experiment(cfg, force=args.force, jobs=args.jobs)
     done = sum(1 for s in summaries if s["status"] == "complete")
     skipped = sum(1 for s in summaries if s["status"] == "skipped")
     print(f"\nFinished: {done} run, {skipped} skipped, {len(summaries)} total units.")

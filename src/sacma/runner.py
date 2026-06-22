@@ -212,21 +212,44 @@ def iter_units(cfg: ExperimentConfig):
                     yield model, ec, dim, func
 
 
+def _run_unit_star(args):
+    """Top-level worker for multiprocessing (must be picklable)."""
+    model, ec, dim, func, cfg, force = args
+    return run_unit(model, ec, dim, func, cfg, force=force, verbose=False)
+
+
 def run_experiment(cfg: ExperimentConfig, *, force: bool = False,
-                   verbose: bool = True) -> list[dict]:
-    """Run all selected units (variant x dim x function), resume-aware."""
+                   verbose: bool = True, jobs: int = 1) -> list[dict]:
+    """Run all selected units (variant x dim x function), resume-aware.
+
+    jobs > 1 runs units across that many processes. Units are independent (own
+    COCO folder + .done marker), so this is a faithful, lossless speedup — the
+    workload is CPU-bound, so set jobs to the number of available CPU cores.
+    """
     units = list(iter_units(cfg))
     total = len(units)
-    summaries = []
+    summaries: list[dict] = []
     t0 = time.time()
     done = skipped = 0
+
+    if jobs and jobs > 1:
+        from multiprocessing import Pool
+        args = [(m, e, d, f, cfg, force) for (m, e, d, f) in units]
+        with Pool(processes=jobs) as pool:
+            for i, s in enumerate(pool.imap_unordered(_run_unit_star, args), 1):
+                summaries.append(s)
+                done += s["status"] == "complete"
+                skipped += s["status"] == "skipped"
+                if verbose and (i % 20 == 0 or i == total):
+                    print(f"[{i}/{total}] {done} run, {skipped} skipped "
+                          f"({time.time()-t0:.0f}s, {jobs} jobs)", flush=True)
+        return summaries
+
     for i, (model, ec, dim, func) in enumerate(units, 1):
         s = run_unit(model, ec, dim, func, cfg, force=force, verbose=verbose)
         summaries.append(s)
-        if s["status"] == "complete":
-            done += 1
-        else:
-            skipped += 1
+        done += s["status"] == "complete"
+        skipped += s["status"] == "skipped"
         if verbose and (i % 20 == 0 or i == total):
             print(f"[{i}/{total}] {done} run, {skipped} skipped "
                   f"({time.time()-t0:.0f}s) last={s['unit']}", flush=True)
