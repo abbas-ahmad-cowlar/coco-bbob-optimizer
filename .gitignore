@@ -16,8 +16,8 @@ exdata/
 ppdata/
 *_cocopp/
 
-# Model weights cache (regenerable via pretraining; large binary)
-models/models/weights/*.pt
+# Model weights are committed (2 MB) so Colab/CI need no pretraining step.
+# (intentionally NOT ignored: models/models/weights/pfn_bnn_transformer.pt)
 
 # Large / regenerable doc binaries (markdown summaries are kept)
 docs/extracted-pdfs/
