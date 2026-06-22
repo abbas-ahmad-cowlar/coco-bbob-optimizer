@@ -1,0 +1,13 @@
+# Stage 1: full noiseless BBOB experiment per the protocol.
+#   18 variants (6 models x 3 ECs) x f1-f24 x {2,3,5,10,20} x instances 1-15
+#   budget = 250 * D, early-stop on COCO final target (1e-8).
+suite_name: bbob
+models: [gp, bnn_mc_dropout, pfn_bnn, pfn_hebo, gmm_np, pfn_transformer]
+ecs: [lmm, dts, lq]
+functions: "1-24"
+dimensions: [2, 3, 5, 10, 20]
+instances: "1-15"
+budget_mult: 250
+seed: 42
+exdata_dir: exdata
+diag_dir: results/diagnostics
