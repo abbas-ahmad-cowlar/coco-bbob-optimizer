@@ -213,9 +213,10 @@ class IPOPSurrogateCMAES:
             generation = 0
 
             while not es.stop() and n_evals < budget:
-                if is_done is not None and is_done():
-                    break
-
+                # No is_done() check here: once the target is hit we let this restart
+                # converge deep (~1e-14) so Delta-mu-f is measured below 1e-8. is_done()
+                # gates *new restarts* (outer loop) instead — they cannot improve
+                # best-so-far once solved, so skipping them saves large amounts of compute.
                 progress = min(1.0, n_evals / max(1, budget))
                 kappa = cfg.kappa_init + (cfg.kappa_final - cfg.kappa_init) * progress
 

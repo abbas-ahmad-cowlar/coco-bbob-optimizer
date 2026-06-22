@@ -1,0 +1,13 @@
+# Stage 1, low dimensions only (D2,3,5) — fast first pass (~hours, not days).
+# Same protocol as stage1_noiseless.yaml; run this first, then the full config
+# (resume fills in D10/D20 without redoing these).
+suite_name: bbob
+models: [gp, bnn_mc_dropout, pfn_bnn, pfn_hebo, gmm_np, pfn_transformer]
+ecs: [lmm, dts, lq]
+functions: "1-24"
+dimensions: [2, 3, 5]
+instances: "1-15"
+budget_mult: 250
+seed: 42
+exdata_dir: exdata
+diag_dir: results/diagnostics

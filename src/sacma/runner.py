@@ -107,8 +107,11 @@ class ExperimentConfig:
     instances: object = "1-15"
     budget_mult: int = 250
     seed: int = 42
-    early_stop: bool = False    # if True, stop at COCO 1e-8 target; OFF so Delta-mu-f
-                                # can be measured down to 1e-13 over the full budget
+    early_stop: bool = True     # once the 1e-8 target is hit, stop launching new IPOP
+                                # restarts (after the solving restart converges to ~1e-14).
+                                # Delta-mu-f-preserving (best-so-far cannot improve once
+                                # solved) and skips the wasteful post-solve restart loop.
+                                # Set False to force the full 250*D budget on every problem.
     exdata_dir: str = "exdata"
     diag_dir: str = "results/diagnostics"
 
