@@ -24,6 +24,15 @@ docs/extracted-pdfs/
 docs/*.pdf
 docs/*.zip
 
+# LaTeX build artifacts (keep .tex and .pdf)
+*.aux
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+reports/*.log
+reports/*.out
+reports/*.toc
+
 # Editors
 .vscode/
 .idea/
