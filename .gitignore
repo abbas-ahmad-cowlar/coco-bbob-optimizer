@@ -33,6 +33,11 @@ reports/*.log
 reports/*.out
 reports/*.toc
 
+# Run logs
+run_*.log
+*.out.log
+*.err.log
+
 # Editors
 .vscode/
 .idea/
