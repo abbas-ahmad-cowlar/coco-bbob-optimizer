@@ -35,14 +35,14 @@ three evolution-control strategies inside an IPOP-CMA-ES optimizer on the noisel
 suite, and compare the resulting eighteen variants against four established CMA-ES algorithms
 from the COCO public archive. Performance is measured by $\dmf$, the normalized log-measure of
 target precisions reached within a fixed budget, at $50$ and $250$ function evaluations per
-dimension. On dimensions $2,3,5$ the established baselines lead (best: LMM-CMA-ES,
-$\dmf=0.680$); our variants cluster near CMA-ES-2019 ($\dmf\approx0.50$). The decisive finding
+dimension. On dimensions $2,3,5,10$ the established baselines lead (best: LMM-CMA-ES,
+$\dmf=0.654$); our variants cluster near CMA-ES-2019 ($\dmf\approx0.47$). The decisive finding
 is an ablation result: surrogate \emph{accuracy} governs the outcome. The Gaussian Process is
 the only surrogate accurate enough (normalized RMSE $\approx0.04$) to help and save real
 evaluations; the mid-accuracy neural surrogates are a net negative; and the transformer
 surrogate is so inaccurate (RMSE $\approx1.0$) that the quality gate rejects it, reducing it to
 plain IPOP-CMA-ES. Pairwise Wilcoxon signed-rank tests with Holm correction confirm that
-$86/153$ variant differences are statistically significant.
+$83/153$ variant differences are statistically significant.
 \end{abstract}
 
 \section{Objective}
@@ -54,8 +54,9 @@ surrogate actually used, how many true evaluations are saved, and does the surro
 gate reject poor predictions?}
 
 This report covers \textbf{Stage~1}: noiseless functions \texttt{f1--f24}, dimensions
-$D\in\{2,3,5\}$, instances $1$--$5$, full budget $250\,D$. Dimensions $10$ and $20$ are a
-planned extension (Section~\ref{sec:limits}); the pipeline runs them unchanged.
+$D\in\{2,3,5,10\}$ (four of the five protocol dimensions), instances $1$--$5$, full budget
+$250\,D$. Dimension $20$ is a planned extension (Section~\ref{sec:limits}); the pipeline runs it
+unchanged.
 
 \section{Experimental setup}
 \label{sec:setup}
@@ -74,7 +75,7 @@ Surrogate models (6) & \texttt{gp}, \texttt{bnn\_mc\_dropout}, \texttt{pfn\_bnn}
 Evolution controls (3) & \texttt{lmm}, \texttt{dts}, \texttt{lq} \cite{pitra2021} \\
 Variants & $6\times3=18$ \\
 Functions & noiseless BBOB \texttt{f1--f24} \\
-Dimensions (this stage) & $2,3,5$ \\
+Dimensions (this stage) & $2,3,5,10$ \\
 Instances & $1$--$5$ \\
 Budget & $250\,D$ true function evaluations \\
 Checkpoints & $50\,\fed$ and $250\,\fed$ \\
@@ -113,10 +114,10 @@ The experiment is driven by \texttt{scripts/run\_experiment.py} (optimization $\
 COCO logs $+$ diagnostics) and \texttt{scripts/analyze.py} ($\dmf$ tables, statistics, ablation,
 plots, ECDF). The runner is \emph{resume-safe}: the unit of work is one
 $(\text{model}\times\text{EC}\times\text{dimension}\times\text{function})$, marked complete by a
-checkpoint file, so an interrupted run continues from the last finished unit. The Stage-1 sweep
-($1296$ units, $6480$ optimization runs) completed in \textbf{11.6\,h on 4 CPU cores}. Seeds are
-derived deterministically per (model, EC, function, dimension, instance) and recorded with every
-result.
+checkpoint file, so an interrupted run continues from the last finished unit. This Stage-1 sweep
+covers $1728$ units ($8640$ optimization runs) across $D\in\{2,3,5,10\}$, executed on 4 CPU
+cores over several resumable sessions. Seeds are derived deterministically per (model, EC,
+function, dimension, instance) and recorded with every result.
 
 \section{Results}
 
@@ -132,14 +133,14 @@ CMA-ES-2019 (Table~\ref{tab:overall}, Figure~\ref{fig:overall}).
 \toprule
 \textbf{Algorithm} & $\dmf$ @ $50\,\fed$ & $\dmf$ @ $250\,\fed$ \\
 \midrule
-LMM-CMA-ES                 & 0.420 & \textbf{0.680} \\
-LQ-CMA-ES                  & 0.488 & 0.600 \\
-DTS-CMA-ES                 & 0.452 & 0.589 \\
-CMA-ES-2019                & 0.357 & 0.524 \\
+LMM-CMA-ES                 & 0.406 & \textbf{0.654} \\
+LQ-CMA-ES                  & 0.464 & 0.582 \\
+DTS-CMA-ES                 & 0.427 & 0.569 \\
+CMA-ES-2019                & 0.347 & 0.495 \\
 \midrule
-\texttt{pfn\_transformer\_lqEC} (our best) & 0.314 & 0.502 \\
-\texttt{gp\_dtsEC}         & 0.313 & 0.499 \\
-\textit{remaining 16 variants} & $\sim$0.31 & 0.44--0.50 \\
+\texttt{pfn\_transformer\_lqEC} (our best) & 0.299 & 0.472 \\
+\texttt{gp\_dtsEC}         & 0.299 & 0.471 \\
+\textit{remaining 16 variants} & $\sim$0.30 & 0.43--0.47 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -154,10 +155,10 @@ lead; our variants (blue) cluster near CMA-ES-2019.}
 
 \subsection{Effect of model and evolution control}
 Averaging over functions, dimensions and ECs (Figure~\ref{fig:meandbl}): \texttt{pfn\_transformer}
-($0.499$) $\approx$ \texttt{gp} ($0.495$) $>$ \texttt{gmm\_np} ($0.468$) $>$
-\texttt{bnn\_mc\_dropout} ($0.456$) $>$ \texttt{pfn\_hebo} ($0.451$) $>$ \texttt{pfn\_bnn}
-($0.446$). For the evolution control, \texttt{lq} ($0.472$) $\gtrsim$ \texttt{lmm} ($0.468$)
-$\gtrsim$ \texttt{dts} ($0.467$), with \texttt{lq} marginally best---consistent with
+($0.470$) $\approx$ \texttt{gp} ($0.468$) $>$ \texttt{gmm\_np} ($0.447$) $>$
+\texttt{pfn\_hebo} ($0.438$) $>$ \texttt{bnn\_mc\_dropout} ($0.435$) $>$ \texttt{pfn\_bnn}
+($0.434$). For the evolution control, \texttt{lq} ($0.451$) $\gtrsim$ \texttt{lmm} ($0.448$)
+$\gtrsim$ \texttt{dts} ($0.447$), with \texttt{lq} marginally best---consistent with
 Pitra~et~al.\ \cite{pitra2021} naming \texttt{lq\_EC} their strongest controller.
 
 \begin{figure}[H]
@@ -202,13 +203,13 @@ neural surrogates straddle the $0.5$ gate.}
 \textbf{Question} & \textbf{Answer from the data} \\
 \midrule
 Which model is best? & \textbf{GP} --- the only surrogate both accurate and competitive. \\
-Surrogate accuracy (norm.\ RMSE) & GP $\approx0.036$; neural $0.35$--$0.64$; transformer
-$\approx1.0$. \\
-How often used / evals saved? & GP saves $\sim$$170$ evals/run (real-eval fraction $0.83$ under
-\texttt{dts}); neural $\sim$$80$--$135$; transformer $\sim$$0$. \\
+Surrogate accuracy (norm.\ RMSE) & GP $\approx0.04$; neural $0.35$--$0.89$; transformer
+$\approx1.0$--$1.2$. \\
+How often used / evals saved? & GP saves $\sim$$270$ evals/run (real-eval fraction $0.83$ under
+\texttt{dts}); neural $\sim$$100$--$200$; transformer $\sim$$0$. \\
 Did the RMSE gate reject bad predictions? & \textbf{Yes, decisively} --- it passes GP and blocks
 the transformer. \\
-Which EC saves more budget? & \texttt{dts} (real-eval fraction $\approx0.83$--$0.91$) $>$
+Which EC saves more budget? & \texttt{dts} (real-eval fraction $\approx0.83$--$0.92$) $>$
 \texttt{lmm} $>$ \texttt{lq} (most conservative). \\
 \bottomrule
 \end{tabular}
@@ -221,10 +222,10 @@ transformer is auto-rejected every generation.
 
 \subsection{Statistics and per-group performance}
 A two-sided Wilcoxon signed-rank test with Holm correction over matched problems finds
-\textbf{$86$ of $153$} variant pairs significantly different at $250\,\fed$: the differences
+\textbf{$83$ of $153$} variant pairs significantly different at $250\,\fed$: the differences
 above are real, not sampling noise. Per-group $\dmf$ (Figure~\ref{fig:heatmap}) shows
 LMM-CMA-ES dominating every group, most strongly on high-conditioned unimodal functions
-(f10--14, $\dmf=0.909$). Representative convergence (Figure~\ref{fig:conv}) confirms our best
+(f10--14, $\dmf=0.88$). Representative convergence (Figure~\ref{fig:conv}) confirms our best
 variants track the baselines on unimodal functions and close the gap on the harder multimodal
 groups, where all algorithms struggle.
 
@@ -247,9 +248,10 @@ baselines on representative functions at $D=5$. $x$-axis: true evaluations per d
 \section{Limitations and next steps}
 \label{sec:limits}
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{Dimensions $10$ and $20$} are not yet included (this stage is $D\in\{2,3,5\}$).
-They are the expensive tier and run unchanged via the resume mechanism; they will shift absolute
-numbers but are unlikely to change the qualitative story (GP $>$ neural).
+\item \textbf{Dimension $20$} is not yet included (this stage is $D\in\{2,3,5,10\}$, four of the
+five protocol dimensions). It is the most expensive tier; a partial run is in progress. It will
+shift absolute numbers but is unlikely to change the qualitative story (GP $>$ neural), which has
+held across all four dimensions.
 \item \textbf{Five instances} were used here; the protocol's $15$ is a longer rerun.
 \item The \textbf{transformer} is the PFN of M\"uller~et~al.\ \cite{muller2023}; pretrained on
 synthetic priors it does not transfer to BBOB landscapes (RMSE $\approx1.0$) and is gated out.
@@ -260,10 +262,11 @@ but it does not help on this benchmark without BBOB-specific pretraining.
 
 \section{Reproducibility}
 Repository: \url{https://github.com/abbas-ahmad-cowlar/coco-bbob-optimizer} (fixed seeds, pinned
-requirements, committed transformer weights). To regenerate every number and figure:
+requirements, committed transformer weights). To regenerate every number and figure for this
+stage:
 \begin{verbatim}
-python scripts/run_experiment.py --config configs/stage1_lowdim.yaml --instances "1-5" --jobs 3
-python scripts/analyze.py --baselines --cocopp
+python scripts/run_experiment.py --config configs/stage1_noiseless.yaml --instances "1-5" --jobs 3
+python scripts/analyze.py --baselines --dims 2 3 5 10
 python scripts/make_report_figures.py
 \end{verbatim}
 Per-condition data is written to \texttt{results/processed/} (long table, group tables, win

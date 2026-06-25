@@ -1,5 +1,9 @@
 # Surrogate-Assisted CMA-ES on COCO/BBOB — Stage 1 Report
 
+> **Note:** the canonical, formatted report is **[stage1_report.pdf](stage1_report.pdf)**
+> (source: [stage1_report.tex](stage1_report.tex)), now covering **D2,3,5,10**. This markdown is
+> the earlier **D2,3,5** snapshot, kept for quick reading; numbers below differ slightly.
+
 **Scope of this report:** noiseless BBOB functions `f1–f24`, dimensions **D = 2, 3, 5**,
 instances 1–5, full evaluation budget 250·D. (Dimensions 10 and 20 are a planned
 extension — see [§8](#8-limitations--next-steps).) All numbers below are reproduced by the

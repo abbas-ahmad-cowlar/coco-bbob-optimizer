@@ -50,8 +50,9 @@ def discover_variants(diag_dir: Path) -> list[str]:
     return sorted(vids)
 
 
-def aggregate_diagnostics(diag_dir: Path, variants: list[str]) -> pd.DataFrame:
+def aggregate_diagnostics(diag_dir: Path, variants: list[str], dims=None) -> pd.DataFrame:
     rows = []
+    dimset = set(int(d) for d in dims) if dims else None
     for v in variants:
         recs = []
         for jl in diag_dir.glob(f"{v}__D*__f*.jsonl"):
@@ -59,6 +60,10 @@ def aggregate_diagnostics(diag_dir: Path, variants: list[str]) -> pd.DataFrame:
         if not recs:
             continue
         df = pd.DataFrame(recs)
+        if dimset is not None:
+            df = df[df["dimension"].isin(dimset)]
+        if len(df) == 0:
+            continue
         rows.append({
             "variant": v,
             "n_runs": len(df),
@@ -80,6 +85,8 @@ def main() -> None:
     ap.add_argument("--out", default="results/processed")
     ap.add_argument("--budget-mult", type=int, default=250)
     ap.add_argument("--checkpoints", type=int, nargs="+", default=[50, 250])
+    ap.add_argument("--dims", type=int, nargs="+", default=None,
+                    help="Restrict analysis to these dimensions (e.g. to exclude a partial run).")
     ap.add_argument("--baselines", nargs="*", default=None,
                     help=f"Include archived baselines in tables/plots. No args = all "
                          f"({', '.join(BASELINES)}); or list a subset.")
@@ -108,7 +115,9 @@ def main() -> None:
         baseline_paths = fetch_baselines(names)
 
     # ---- Master table + Delta-mu-f aggregations -------------------------
-    long_var = build_long_table(exdata, variants, fe_per_d=checkpoints)   # variants only
+    long_var = build_long_table(exdata, variants, fe_per_d=checkpoints, dims=args.dims)  # variants only
+    if args.dims:
+        print(f"Restricted to dimensions: {sorted(args.dims)}")
     long_all = long_var
     if baseline_paths:
         long_base = build_baseline_table(baseline_paths, fe_per_d=checkpoints)
@@ -132,7 +141,7 @@ def main() -> None:
         wilcoxon_holm(long_var, feD).to_csv(out / f"wilcoxon_{feD}FEbyD.csv", index=False)
 
     # ---- Ablation diagnostics ------------------------------------------
-    diag = aggregate_diagnostics(diag_dir, variants)
+    diag = aggregate_diagnostics(diag_dir, variants, dims=args.dims)
     diag.to_csv(out / "diagnostics_summary.csv", index=False)
     print("\n=== Diagnostics (surrogate usage) ===")
     print(diag.round(3).to_string(index=False))
