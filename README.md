@@ -4,9 +4,8 @@ Benchmark study of neural and classical **surrogate models** under three
 **evolution-control** strategies in surrogate-assisted CMA-ES, evaluated on the
 COCO/BBOB suite and compared against established CMA-ES baselines.
 
-This follows the standard experimental design described in `docs/`
-(see [docs/source-materials-index.md](docs/source-materials-index.md) and
-[the experiment protocol](the experiment protocol)).
+The experimental design follows the standard COCO/BBOB benchmarking protocol for
+surrogate-assisted CMA-ES (see the references in the report).
 
 ## Experiment matrix
 
@@ -85,8 +84,8 @@ python models/models/pfn_transformer.py --steps 10000   # --force to overwrite
 ## Layout
 
 ```
-docs/        GECCO 2016 fsim source
-models/      the surrogate-model package (gp, bnn_mc_dropout, pfn_*, gmm_np) + CMA optimizer
+docs/        GECCO 2016 fsim WEC reference source (public)
+models/      surrogate-model package (gp, bnn_mc_dropout, pfn_*, gmm_np) + CMA optimizer
 src/sacma/   experiment framework (IPOP wrapper, COCO runner, metrics, stats, plots)
 configs/     experiment configuration files
 results/     COCO-format output + processed tables/plots (gitignored)

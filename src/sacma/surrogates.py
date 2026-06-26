@@ -1,8 +1,8 @@
-"""Registry for the six surrogate models in the package.
+"""Registry for the six surrogate models in the models package.
 
-The models live in ``<repo>/models/models/`` (a package literally named
+The surrogate models live in ``<repo>/models/models/`` (a package literally named
 ``models``). We add ``<repo>/models`` to ``sys.path`` so ``import models.gp`` etc.
-resolve, without modifying the files.
+resolve, without modifying those files.
 """
 
 from __future__ import annotations

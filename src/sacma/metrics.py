@@ -1,6 +1,6 @@
 """Δµf metric and aggregation over COCO/BBOB results.
 
-Δµf (from the experiment instructions, the experiment protocol §16):
+Δµf (per the COCO/BBOB performance-measure protocol):
     For a fixed budget, Δµf is the Lebesgue measure of the log-transform of the
     achieved target-precision subset within [1e-13, 1e7], normalised so Δµf = 1
     when every target in that interval is reached.

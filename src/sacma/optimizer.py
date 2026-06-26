@@ -4,7 +4,7 @@ The ``CMAOptimizer`` (models/models/cma_optimizer.py) implements the three
 evolution-control (EC) strategies from Pitra et al. (GECCO 2021), but with its own
 population/step-size/restart defaults that do NOT match the required protocol. This
 module wraps those EC strategies in a proper IPOP restart scheme using the exact
-settings from the experiment instructions (the experiment protocol §16):
+settings from the experiment protocol:
 
     Base optimizer  : IPOP-CMA-ES
     Restarts        : 50
@@ -14,7 +14,7 @@ settings from the experiment instructions (the experiment protocol §16):
     Initial point   : x0 ~ U[-4, 4]^D
     Budget          : 250 * D    true black-box evaluations
 
-The EC update rules themselves are reused *verbatim* from the class
+The EC update rules themselves are reused *verbatim* from the ``CMAOptimizer`` class
 (``_update_lmm_ec`` / ``_update_dts_ec`` / ``_update_lq_ec``) so the "proposed
 algorithm" behaviour is unchanged — only the CMA-ES base configuration is corrected.
 
@@ -35,14 +35,14 @@ from scipy.stats import kendalltau, spearmanr
 
 import cma
 
-# Make the package importable (package is literally named ``models``).
+# Make the models package importable (package is literally named ``models``).
 _MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 if str(_MODELS_DIR) not in sys.path:
     sys.path.insert(0, str(_MODELS_DIR))
 
 from models.cma_optimizer import CMAOptimizer, _compute_normalized_rmse  # noqa: E402
 
-_MAX_ARCHIVE = 300  # surrogate training window (matches project default)
+_MAX_ARCHIVE = 300  # surrogate training window (matches CMAOptimizer default)
 
 
 def ipop_lambda(dim: int) -> int:
@@ -76,7 +76,7 @@ class IPOPSurrogateCMAES:
         Bounds of the uniform initial-point sampling box (default [-4, 4]).
     ec_config : CMAOptimizer | None
         Source of EC hyper-parameters and update methods. If None, a default
-        CMAOptimizer is constructed with the given ec_type so the
+        CMAOptimizer is constructed with the given ec_type so its
         defaults (thresholds, eval fractions, RMSE gate, kappa) are reused exactly.
     """
 
@@ -102,7 +102,7 @@ class IPOPSurrogateCMAES:
         self.sigma0 = sigma0
         self.x0_low = x0_low
         self.x0_high = x0_high
-        # Borrow the EC hyper-parameters + update methods (no run() call).
+        # Borrow the CMAOptimizer EC hyper-parameters + update methods (no run() call).
         self.cfg = ec_config or CMAOptimizer(surrogate=surrogate, ec_type=ec_type)
 
     # ------------------------------------------------------------------
@@ -292,7 +292,7 @@ class IPOPSurrogateCMAES:
                     if n_evals >= budget:
                         break
 
-                # ---- EC update (reuse the methods verbatim) -----------
+                # ---- EC update (reuse CMAOptimizer methods verbatim) -------
                 if use_surrogate and len(real_true) >= 2:
                     if self.ec_type == "lmm":
                         tau, _ = kendalltau(real_preds, real_true)
