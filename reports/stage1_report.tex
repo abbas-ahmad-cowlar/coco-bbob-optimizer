@@ -21,7 +21,7 @@
 \newcommand{\fed}{\text{FE}/D}
 
 \title{\textbf{Surrogate-Assisted CMA-ES on the COCO/BBOB Benchmark}\\[2pt]
-\large Interaction Between Neural Surrogate Models and Evolution Control --- Stage~1}
+\large Interaction Between Neural Surrogate Models and Evolution Control}
 \author{Syed Abbas Ahmad}
 \date{\today}
 
@@ -35,14 +35,16 @@ three evolution-control strategies inside an IPOP-CMA-ES optimizer on the noisel
 suite, and compare the resulting eighteen variants against four established CMA-ES algorithms
 from the COCO public archive. Performance is measured by $\dmf$, the normalized log-measure of
 target precisions reached within a fixed budget, at $50$ and $250$ function evaluations per
-dimension. On dimensions $2,3,5,10$ the established baselines lead (best: LMM-CMA-ES,
-$\dmf=0.654$); our variants cluster near CMA-ES-2019 ($\dmf\approx0.47$). The decisive finding
-is an ablation result: surrogate \emph{accuracy} governs the outcome. The Gaussian Process is
-the only surrogate accurate enough (normalized RMSE $\approx0.04$) to help and save real
-evaluations; the mid-accuracy neural surrogates are a net negative; and the transformer
-surrogate is so inaccurate (RMSE $\approx1.0$) that the quality gate rejects it, reducing it to
-plain IPOP-CMA-ES. Pairwise Wilcoxon signed-rank tests with Holm correction confirm that
-$83/153$ variant differences are statistically significant.
+dimension. Across the full set of dimensions $\{2,3,5,10,20\}$ the established baselines lead
+(best: LMM-CMA-ES, $\dmf=0.612$); our variants cluster near CMA-ES-2019 ($\dmf\approx0.45$). The
+decisive finding is an ablation result: surrogate \emph{accuracy} governs the outcome. The
+Gaussian Process is the only surrogate accurate enough (normalized RMSE $\approx0.04$) to help
+and save real evaluations; the mid-accuracy neural surrogates are a net negative; and the
+transformer surrogate is so inaccurate (RMSE $\approx1.1$) that the quality gate rejects it,
+reducing it to plain IPOP-CMA-ES. A scaling analysis shows GP's advantage over the neural
+surrogates is a low-dimensional phenomenon---it vanishes by $D=20$---while the baselines'
+lead also narrows sharply at high dimension. Pairwise Wilcoxon signed-rank tests with Holm
+correction confirm $76/153$ variant differences are statistically significant.
 \end{abstract}
 
 \section{Objective}
@@ -50,13 +52,11 @@ The goal is to reproduce a standard surrogate-assisted CMA-ES study: separate th
 \emph{surrogate model} from the \emph{evolution control} (EC), compare all combinations under
 identical settings, and benchmark them against established CMA-ES variants on COCO/BBOB. Beyond
 ranking, we answer the diagnostic questions: \emph{which model and EC are best, how often is the
-surrogate actually used, how many true evaluations are saved, and does the surrogate quality
-gate reject poor predictions?}
+surrogate actually used, how many true evaluations are saved, does the surrogate quality gate
+reject poor predictions, and how does behaviour scale with dimension?}
 
-This report covers \textbf{Stage~1}: noiseless functions \texttt{f1--f24}, dimensions
-$D\in\{2,3,5,10\}$ (four of the five protocol dimensions), instances $1$--$5$, full budget
-$250\,D$. Dimension $20$ is a planned extension (Section~\ref{sec:limits}); the pipeline runs it
-unchanged.
+This study covers the noiseless functions \texttt{f1--f24}, the full set of dimensions
+$D\in\{2,3,5,10,20\}$, instances $1$--$5$, and the full budget $250\,D$.
 
 \section{Experimental setup}
 \label{sec:setup}
@@ -75,7 +75,7 @@ Surrogate models (6) & \texttt{gp}, \texttt{bnn\_mc\_dropout}, \texttt{pfn\_bnn}
 Evolution controls (3) & \texttt{lmm}, \texttt{dts}, \texttt{lq} \cite{pitra2021} \\
 Variants & $6\times3=18$ \\
 Functions & noiseless BBOB \texttt{f1--f24} \\
-Dimensions (this stage) & $2,3,5,10$ \\
+Dimensions & $2,3,5,10,20$ \\
 Instances & $1$--$5$ \\
 Budget & $250\,D$ true function evaluations \\
 Checkpoints & $50\,\fed$ and $250\,\fed$ \\
@@ -107,16 +107,16 @@ It is computed from the COCO logs, which retain full sub-$10^{-8}$ resolution.
 \paragraph{Baselines.}
 Loaded from the COCO public archive \cite{coco2021} and compared on the same
 (function, dimension) cells. ``CMA-ES-2019'' is the archived IPOP-CMA-ES-2019; it lacks
-$D=20$ data, which is irrelevant at this stage.
+$D=20$ data, so $D=20$ comparisons exclude it.
 
 \section{Methodology and reproducibility of the run}
 The experiment is driven by \texttt{scripts/run\_experiment.py} (optimization $\rightarrow$
 COCO logs $+$ diagnostics) and \texttt{scripts/analyze.py} ($\dmf$ tables, statistics, ablation,
 plots, ECDF). The runner is \emph{resume-safe}: the unit of work is one
 $(\text{model}\times\text{EC}\times\text{dimension}\times\text{function})$, marked complete by a
-checkpoint file, so an interrupted run continues from the last finished unit. This Stage-1 sweep
-covers $1728$ units ($8640$ optimization runs) across $D\in\{2,3,5,10\}$, executed on 4 CPU
-cores over several resumable sessions. Seeds are derived deterministically per (model, EC,
+checkpoint file, so an interrupted run continues from the last finished unit. The full sweep
+covers $2160$ units ($10{,}800$ optimization runs), executed on 4 CPU cores (one math thread per
+worker) over several resumable sessions. Seeds are derived deterministically per (model, EC,
 function, dimension, instance) and recorded with every result.
 
 \section{Results}
@@ -127,20 +127,20 @@ CMA-ES-2019 (Table~\ref{tab:overall}, Figure~\ref{fig:overall}).
 
 \begin{table}[H]
 \centering
-\caption{Mean $\dmf$ at the two checkpoints (top algorithms).}
+\caption{Mean $\dmf$ at the two checkpoints (top algorithms, averaged over all dimensions).}
 \label{tab:overall}
 \begin{tabular}{@{}lcc@{}}
 \toprule
 \textbf{Algorithm} & $\dmf$ @ $50\,\fed$ & $\dmf$ @ $250\,\fed$ \\
 \midrule
-LMM-CMA-ES                 & 0.406 & \textbf{0.654} \\
-LQ-CMA-ES                  & 0.464 & 0.582 \\
-DTS-CMA-ES                 & 0.427 & 0.569 \\
+LMM-CMA-ES                 & 0.393 & \textbf{0.612} \\
+LQ-CMA-ES                  & 0.440 & 0.558 \\
+DTS-CMA-ES                 & 0.408 & 0.532 \\
 CMA-ES-2019                & 0.347 & 0.495 \\
 \midrule
-\texttt{pfn\_transformer\_lqEC} (our best) & 0.299 & 0.472 \\
-\texttt{gp\_dtsEC}         & 0.299 & 0.471 \\
-\textit{remaining 16 variants} & $\sim$0.30 & 0.43--0.47 \\
+\texttt{gp\_dtsEC} (our best) & 0.287 & 0.447 \\
+\texttt{pfn\_transformer\_lqEC} & 0.286 & 0.445 \\
+\textit{remaining 16 variants} & $\sim$0.29 & 0.42--0.44 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -154,12 +154,13 @@ lead; our variants (blue) cluster near CMA-ES-2019.}
 \end{figure}
 
 \subsection{Effect of model and evolution control}
-Averaging over functions, dimensions and ECs (Figure~\ref{fig:meandbl}): \texttt{pfn\_transformer}
-($0.470$) $\approx$ \texttt{gp} ($0.468$) $>$ \texttt{gmm\_np} ($0.447$) $>$
-\texttt{pfn\_hebo} ($0.438$) $>$ \texttt{bnn\_mc\_dropout} ($0.435$) $>$ \texttt{pfn\_bnn}
-($0.434$). For the evolution control, \texttt{lq} ($0.451$) $\gtrsim$ \texttt{lmm} ($0.448$)
-$\gtrsim$ \texttt{dts} ($0.447$), with \texttt{lq} marginally best---consistent with
-Pitra~et~al.\ \cite{pitra2021} naming \texttt{lq\_EC} their strongest controller.
+Averaging over functions, dimensions and ECs (Figure~\ref{fig:meandbl}): \texttt{gp} ($0.445$)
+$\approx$ \texttt{pfn\_transformer} ($0.445$) $>$ \texttt{gmm\_np} ($0.427$) $>$
+\texttt{pfn\_hebo} ($0.423$) $>$ \texttt{pfn\_bnn} ($0.418$) $\approx$ \texttt{bnn\_mc\_dropout}
+($0.417$). The evolution controls are essentially tied: \texttt{lq} ($0.430$) $\gtrsim$
+\texttt{lmm} ($0.429$) $\gtrsim$ \texttt{dts} ($0.428$), with \texttt{lq} marginally
+best---consistent with Pitra~et~al.\ \cite{pitra2021} naming \texttt{lq\_EC} their strongest
+controller.
 
 \begin{figure}[H]
 \centering
@@ -175,10 +176,10 @@ Pitra~et~al.\ \cite{pitra2021} naming \texttt{lq\_EC} their strongest controller
 \label{fig:meandbl}
 \end{figure}
 
-The model ranking is misleading until read with the ablation: \texttt{pfn\_transformer} tops the
-list \emph{because its surrogate is rejected by the quality gate}, so it is effectively plain
-IPOP-CMA-ES. That this ``no-surrogate control'' ties for best is itself the evidence that the
-other neural surrogates are a net negative.
+The model ranking is only meaningful when read with the ablation: \texttt{gp} (the best real
+surrogate) and \texttt{pfn\_transformer} (whose surrogate is rejected by the quality gate, so it
+runs as plain IPOP-CMA-ES) tie at the top. That a \emph{no-surrogate control} matches the best
+real surrogate is itself the evidence that the other neural surrogates are a net negative.
 
 \subsection{Ablation: does the surrogate help?}
 Figure~\ref{fig:ablation} answers the protocol's diagnostic questions in one view, summarized in
@@ -196,21 +197,22 @@ neural surrogates straddle the $0.5$ gate.}
 
 \begin{table}[H]
 \centering
-\caption{Ablation summary (means over the Stage-1 runs).}
+\caption{Ablation summary (means over all runs).}
 \label{tab:ablation}
 \begin{tabular}{@{}p{6.6cm}p{8cm}@{}}
 \toprule
 \textbf{Question} & \textbf{Answer from the data} \\
 \midrule
-Which model is best? & \textbf{GP} --- the only surrogate both accurate and competitive. \\
+Which model is best? & \textbf{GP} at low/medium dimension; its edge vanishes by $D=20$
+(Section~\ref{sec:scaling}). \\
 Surrogate accuracy (norm.\ RMSE) & GP $\approx0.04$; neural $0.35$--$0.89$; transformer
-$\approx1.0$--$1.2$. \\
-How often used / evals saved? & GP saves $\sim$$270$ evals/run (real-eval fraction $0.83$ under
-\texttt{dts}); neural $\sim$$100$--$200$; transformer $\sim$$0$. \\
+$\approx1.1$. \\
+How often used / evals saved? & GP saves the most --- up to $\sim$$730$ evals/run at $D=20$
+(real-eval fraction $\approx0.83$ under \texttt{dts}); transformer $\sim$$0$. \\
 Did the RMSE gate reject bad predictions? & \textbf{Yes, decisively} --- it passes GP and blocks
 the transformer. \\
-Which EC saves more budget? & \texttt{dts} (real-eval fraction $\approx0.83$--$0.92$) $>$
-\texttt{lmm} $>$ \texttt{lq} (most conservative). \\
+Which EC saves more budget? & \texttt{dts} (real-eval fraction $\approx0.83$) $>$ \texttt{lmm}
+$>$ \texttt{lq} (most conservative). \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -220,14 +222,38 @@ enough to prescreen safely and save real evaluations; the neural surrogates' mid
 makes their prescreening misleading, so they score \emph{below} the no-surrogate control; the
 transformer is auto-rejected every generation.
 
+\subsection{Scaling with dimension}
+\label{sec:scaling}
+Resolving performance by dimension (Figure~\ref{fig:scaling}) reveals two effects invisible in
+the aggregate:
+\begin{enumerate}\setlength\itemsep{2pt}
+\item \textbf{GP's advantage is a low-dimensional phenomenon.} The gap \texttt{gp}$-$\,neural
+falls monotonically with dimension---$+0.051,\,+0.046,\,+0.022,\,+0.001,\,-0.002$ at
+$D=2,3,5,10,20$---so by $D=20$ the Gaussian Process no longer beats the neural surrogates. GP
+remains the most accurate surrogate (RMSE $\approx0.05$) and saves the most evaluations, but
+that accuracy stops translating into a $\dmf$ advantage in high dimension.
+\item \textbf{The baselines' lead narrows at high dimension.} The gap from the best baseline to
+our best variant is stable near $0.18$ for $D\le10$ but \emph{halves} to $0.09$ at $D=20$: the
+established surrogate-assisted baselines (LMM-CMA-ES in particular) degrade faster than our
+variants as dimension grows.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\textwidth]{fig_scaling.png}
+\caption{Mean $\dmf$ at $250\,\fed$ versus dimension. GP (teal) and the neural surrogates
+(purple) converge and cross by $D=10$--$20$; the best baseline (orange) drops sharply at $D=20$,
+narrowing its lead over our cluster.}
+\label{fig:scaling}
+\end{figure}
+
 \subsection{Statistics and per-group performance}
 A two-sided Wilcoxon signed-rank test with Holm correction over matched problems finds
-\textbf{$83$ of $153$} variant pairs significantly different at $250\,\fed$: the differences
-above are real, not sampling noise. Per-group $\dmf$ (Figure~\ref{fig:heatmap}) shows
-LMM-CMA-ES dominating every group, most strongly on high-conditioned unimodal functions
-(f10--14, $\dmf=0.88$). Representative convergence (Figure~\ref{fig:conv}) confirms our best
-variants track the baselines on unimodal functions and close the gap on the harder multimodal
-groups, where all algorithms struggle.
+\textbf{$76$ of $153$} variant pairs significantly different at $250\,\fed$. Per-group $\dmf$
+(Figure~\ref{fig:heatmap}) shows LMM-CMA-ES dominating every group, most strongly on
+high-conditioned unimodal functions (f10--14, $\dmf=0.82$). Representative convergence
+(Figure~\ref{fig:conv}) confirms our best variants track the baselines on unimodal functions and
+close the gap on the harder multimodal groups, where all algorithms struggle.
 
 \begin{figure}[H]
 \centering
@@ -245,28 +271,30 @@ baselines on representative functions at $D=5$. $x$-axis: true evaluations per d
 \label{fig:conv}
 \end{figure}
 
-\section{Limitations and next steps}
+\section{Conclusions and limitations}
 \label{sec:limits}
+The established baselines lead on the noiseless BBOB suite at the tested budgets, with our
+surrogate-assisted variants sitting at the level of CMA-ES-2019. The central, reusable finding
+is that \emph{surrogate accuracy} -- not architecture novelty -- decides whether a surrogate
+helps: the Gaussian Process is the only model accurate enough to assist, the mid-accuracy neural
+surrogates are a net negative, and the transformer is correctly rejected by the quality gate.
+The scaling analysis sharpens this: GP's advantage is confined to low dimension, while at $D=20$
+all surrogates converge and the baselines' lead narrows.
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{Dimension $20$} is not yet included (this stage is $D\in\{2,3,5,10\}$, four of the
-five protocol dimensions). It is the most expensive tier; a partial run is in progress. It will
-shift absolute numbers but is unlikely to change the qualitative story (GP $>$ neural), which has
-held across all four dimensions.
-\item \textbf{Five instances} were used here; the protocol's $15$ is a longer rerun.
+\item \textbf{Five instances} were used per (function, dimension); the wider protocol uses $15$,
+a longer rerun that would tighten the confidence intervals but is not expected to move the means.
 \item The \textbf{transformer} is the PFN of M\"uller~et~al.\ \cite{muller2023}; pretrained on
-synthetic priors it does not transfer to BBOB landscapes (RMSE $\approx1.0$) and is gated out.
-This is the honest answer to ``what is this model and does it work here?'': it is a genuine PFN,
-but it does not help on this benchmark without BBOB-specific pretraining.
-\item A real-world \texttt{fsim} buoy benchmark (Stage~2) is out of scope for this report.
+synthetic priors it does not transfer to BBOB landscapes (RMSE $\approx1.1$) and is gated out.
+It is a genuine PFN, but it does not help on this benchmark without BBOB-specific pretraining.
+\item A real-world \texttt{fsim} buoy benchmark is a separate, out-of-scope extension.
 \end{itemize}
 
 \section{Reproducibility}
 Repository: \url{https://github.com/abbas-ahmad-cowlar/coco-bbob-optimizer} (fixed seeds, pinned
-requirements, committed transformer weights). To regenerate every number and figure for this
-stage:
+requirements, committed transformer weights). To regenerate every number and figure:
 \begin{verbatim}
 python scripts/run_experiment.py --config configs/stage1_noiseless.yaml --instances "1-5" --jobs 3
-python scripts/analyze.py --baselines --dims 2 3 5 10
+python scripts/analyze.py --baselines
 python scripts/make_report_figures.py
 \end{verbatim}
 Per-condition data is written to \texttt{results/processed/} (long table, group tables, win

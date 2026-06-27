@@ -141,6 +141,27 @@ axes[0, 0].legend(fontsize=7, loc="upper right")
 fig.suptitle("Median convergence (quartile band): our two best vs baselines", fontsize=12)
 fig.tight_layout(); fig.savefig(OUT / "fig_convergence.png", dpi=130); plt.close(fig)
 
+
+# 7 — scaling with dimension (the crossover + narrowing baseline gap) -------
+d250 = long[long.fe_per_d == 250]
+DIMS = sorted(d250.dimension.unique())
+NEURAL = ["bnn_mc_dropout", "pfn_bnn", "pfn_hebo", "gmm_np"]
+def _pm(model):
+    return [d250[(d250.model == model) & (d250.dimension == dd)].delta_mu_f.mean() for dd in DIMS]
+lmm = _pm("LMM-CMA-ES"); gp = _pm("gp"); tr = _pm("pfn_transformer")
+neur = [np.mean([d250[(d250.model == x) & (d250.dimension == dd)].delta_mu_f.mean() for x in NEURAL])
+        for dd in DIMS]
+fig, ax = plt.subplots(figsize=(7.2, 5))
+ax.plot(DIMS, lmm, "-o", label="LMM-CMA-ES (best baseline)", color=BASE_C, lw=2)
+ax.plot(DIMS, gp, "-s", label="gp (our best surrogate)", color="#0d9488", lw=2)
+ax.plot(DIMS, neur, "-^", label="neural surrogates (avg)", color="#7570b3", lw=2)
+ax.plot(DIMS, tr, "-d", label="pfn_transformer (gated = no surrogate)", color="#999999", lw=1.4, ls="--")
+ax.set_xscale("log"); ax.set_xticks(DIMS); ax.set_xticklabels([str(d) for d in DIMS])
+ax.set_xlabel("dimension $D$"); ax.set_ylabel(r"mean $\Delta\mu_f$ @ 250 FE/D")
+ax.set_title("Scaling with dimension: GP's edge vanishes, baseline gap narrows")
+ax.legend(fontsize=8); ax.grid(alpha=0.3, which="both")
+fig.tight_layout(); fig.savefig(OUT / "fig_scaling.png", dpi=130); plt.close(fig)
+
 print("wrote figures to", OUT)
 for p in sorted(OUT.glob("*.png")):
     print("  ", p.name, p.stat().st_size, "bytes")
